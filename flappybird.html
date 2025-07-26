@@ -2,25 +2,21 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Flappy Bird</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Flappy Bird OG</title>
     <style>
         body {
             margin: 0;
             padding: 0;
             overflow: hidden;
             touch-action: manipulation;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             background: #70c5ce;
-            font-family: Arial, sans-serif;
+            font-family: 'Arial', sans-serif;
         }
         #gameCanvas {
+            display: block;
             width: 100%;
             height: 100%;
-            display: block;
         }
         #score {
             position: absolute;
@@ -29,130 +25,115 @@
             transform: translateX(-50%);
             font-size: 40px;
             color: white;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-            z-index: 10;
+            text-shadow: 2px 2px #000;
+            z-index: 100;
         }
         #gameOver {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 48px;
             color: red;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            font-size: 48px;
+            text-shadow: 2px 2px #000;
             display: none;
-            z-index: 10;
-        }
-        #restartBtn {
-            position: absolute;
-            top: 60%;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px 20px;
-            font-size: 20px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            display: none;
-            z-index: 10;
+            z-index: 100;
         }
     </style>
 </head>
 <body>
     <div id="score">0</div>
-    <div id="gameOver">Game Over!</div>
-    <button id="restartBtn">Restart</button>
+    <div id="gameOver">GAME OVER</div>
     <canvas id="gameCanvas"></canvas>
 
     <script>
+        // Настройки игры (как в оригинале)
+        const config = {
+            gravity: 0.5,
+            jumpForce: -8,
+            pipeGap: 120,  // Увеличенный зазор между трубами
+            pipeWidth: 80,
+            pipeSpeed: 2,
+            birdWidth: 34,
+            birdHeight: 24
+        };
+
+        // Элементы
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreElement = document.getElementById('score');
         const gameOverElement = document.getElementById('gameOver');
-        const restartBtn = document.getElementById('restartBtn');
 
-        // Размеры canvas = размеру экрана
+        // Размеры canvas
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        // Настройки игры
-        let bird = {
-            x: 50,
+        // Спрайты
+        const birdImg = new Image();
+        birdImg.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACIAAAAkCAYAAAD4d6J7AAAACXBIWXMAAAsTAAALEwEAmpwYAAABNklEQVR4nO2WMUoDQRSGv81qY2FhY2FhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWGxYCEIu5nJ7GY2u0l2QfDBy8zOe/P+efPmzQxUKpVKpfKfGQH3wBvwCbwDz8A9cAWMu4wZAmfAA/AKfAEBiPmK8QKcA8MuY06AJ+AbiF0mxnwDp8Cgy5h94BGIJYgx3wX2us7ZBe6BUIKY8l1gp8+cbeAOCF2JmPJdYLvvnC3gFghdiZjyXWCr75xN4AYIXYmY8l1go++cDeAaCF2JmPJdYL3vnHXgCghdiZjyXWCt75w14BIIXYmY8l1gte+cVeASCF2JmPJdYKXvnBXgAghdiZjyXWC575xl4BwIXYmY8l1gqe+cJeAMCF2JmPJdYKHvnAXgFAhdiZjyXWCh75x54AQIXYmY8l1gvu+cOeAYCF2JmPJdYK7vnFngCAhdiZjyXWC275xZ4BAIXYmY8l1gpu+cGeAACF2JmPJdYLrvnGngAAhdiZjyXWCq75x/wC8W5Q0Td/7C5QAAAABJRU5ErkJggg==';
+
+        const pipeTopImg = new Image();
+        pipeTopImg.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAeCAYAAAAl+Z4RAAAACXBIWXMAAAsTAAALEwEAmpwYAAABKUlEQVR4nO2UMUoDQRSGv81qY2FhY2FhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWGxYCEIu5nJ7GY2u0l2QfDBy8zOe/P+efPmzQxUKpVKpfKfGQH3wBvwCbwDz8A9cAWMu4wZAmfAA/AKfAEBiPmK8QKcA8MuY06AJ+AbiF0mxnwDp8Cgy5h94BGIJYgx3wX2us7ZBe6BUIKY8l1gp8+cbeAOCF2JmPJdYLvvnC3gFghdiZjyXWCr75w14BIIXYmY8l1gqe+cJeAMCF2JmPJdYKHvnAXgFAhdiZjyXWCh75x54AQIXYmY8l1gvu+cOeAYCF2JmPJdYK7vnFngCAhdiZjyXWC275xZ4BAIXYmY8l1gpu+cGeAACF2JmPJdYLrvnHngAAhdiZjyXWCq75x/wC8W5Q0Td/7C5QAAAABJRU5ErkJggg==';
+
+        const pipeBottomImg = new Image();
+        pipeBottomImg.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAeCAYAAAAl+Z4RAAAACXBIWXMAAAsTAAALEwEAmpwYAAABKUlEQVR4nO2UMUoDQRSGv81qY2FhY2FhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWGxYCEIu5nJ7GY2u0l2QfDBy8zOe/P+efPmzQxUKpVKpfKfGQH3wBvwCbwDz8A9cAWMu4wZAmfAA/AKfAEBiPmK8QKcA8MuY06AJ+AbiF0mxnwDp8Cgy5h94BGIJYgx3wX2us7ZBe6BUIKY8l1gp8+cbeAOCF2JmPJdYLvvnC3gFghdiZjyXWCr75w14BIIXYmY8l1gqe+cJeAMCF2JmPJdYKHvnAXgFAhdiZjyXWCh75x54AQIXYmY8l1gvu+cOeAYCF2JmPJdYK7vnFngCAhdiZjyXWC275xZ4BAIXYmY8l1gpu+cGeAACF2JmPJdYLrvnHngAAhdiZjyXWCq75x/wC8W5Q0Td/7C5QAAAABJRU5ErkJggg==';
+
+        // Игровые объекты
+        const bird = {
+            x: 100,
             y: canvas.height / 2,
-            width: 34,
-            height: 24,
+            width: config.birdWidth,
+            height: config.birdHeight,
             velocity: 0,
-            gravity: 0.5,
-            jumpForce: -8
+            rotation: 0
         };
 
         let pipes = [];
         let score = 0;
         let gameRunning = true;
-        let pipeGap = 150;
-        let pipeFrequency = 1500;
         let lastPipeTime = 0;
 
-        // Рисуем птичку
-        function drawBird() {
-            ctx.fillStyle = '#FFD700';
-            ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
-            // Глаз
-            ctx.fillStyle = 'white';
-            ctx.fillRect(bird.x + 20, bird.y + 5, 8, 8);
-            ctx.fillStyle = 'black';
-            ctx.fillRect(bird.x + 22, bird.y + 7, 4, 4);
-            // Клюв
-            ctx.fillStyle = '#FF8C00';
-            ctx.beginPath();
-            ctx.moveTo(bird.x + bird.width, bird.y + 10);
-            ctx.lineTo(bird.x + bird.width + 10, bird.y + 12);
-            ctx.lineTo(bird.x + bird.width, bird.y + 14);
-            ctx.fill();
-        }
-
-        // Рисуем трубы
-        function drawPipes() {
-            ctx.fillStyle = '#2E8B57';
-            pipes.forEach(pipe => {
-                ctx.fillRect(pipe.x, 0, pipe.width, pipe.topHeight);
-                ctx.fillRect(pipe.x, pipe.bottomY, pipe.width, canvas.height - pipe.bottomY);
-            });
-        }
-
         // Игровой цикл
-        function gameLoop(timestamp) {
+        function gameLoop() {
             if (!gameRunning) return;
 
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Очистка
+            ctx.fillStyle = '#70c5ce';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            bird.velocity += bird.gravity;
+            // Физика птицы
+            bird.velocity += config.gravity;
             bird.y += bird.velocity;
+            bird.rotation = Math.min(bird.velocity * 3, 25);
 
-            if (timestamp - lastPipeTime > pipeFrequency) {
+            // Генерация труб
+            if (Date.now() - lastPipeTime > 1500) {
                 createPipe();
-                lastPipeTime = timestamp;
+                lastPipeTime = Date.now();
             }
 
+            // Движение труб
             pipes.forEach((pipe, index) => {
-                pipe.x -= 2;
+                pipe.x -= config.pipeSpeed;
 
-                if (pipe.x + pipe.width < bird.x && !pipe.passed) {
+                // Очки
+                if (pipe.x + config.pipeWidth < bird.x && !pipe.passed) {
                     pipe.passed = true;
                     score++;
                     scoreElement.textContent = score;
                 }
 
-                if (pipe.x + pipe.width < 0) {
+                // Удаление за экраном
+                if (pipe.x + config.pipeWidth < 0) {
                     pipes.splice(index, 1);
                 }
             });
 
-            drawBird();
+            // Отрисовка
             drawPipes();
+            drawBird();
 
+            // Коллизии
             if (checkCollision()) {
                 gameOver();
                 return;
@@ -163,30 +144,46 @@
 
         // Создание трубы
         function createPipe() {
-            const minHeight = 50;
-            const maxHeight = canvas.height - pipeGap - minHeight;
-            const topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
-
+            const topHeight = Math.random() * (canvas.height - config.pipeGap - 100) + 50;
             pipes.push({
                 x: canvas.width,
-                width: 60,
                 topHeight: topHeight,
-                bottomY: topHeight + pipeGap,
                 passed: false
+            });
+        }
+
+        // Отрисовка птицы
+        function drawBird() {
+            ctx.save();
+            ctx.translate(bird.x + bird.width / 2, bird.y + bird.height / 2);
+            ctx.rotate(bird.rotation * Math.PI / 180);
+            ctx.drawImage(birdImg, -bird.width / 2, -bird.height / 2, bird.width, bird.height);
+            ctx.restore();
+        }
+
+        // Отрисовка труб
+        function drawPipes() {
+            pipes.forEach(pipe => {
+                // Верхняя труба
+                ctx.drawImage(pipeTopImg, pipe.x, 0, config.pipeWidth, pipe.topHeight);
+                // Нижняя труба
+                ctx.drawImage(pipeBottomImg, pipe.x, pipe.topHeight + config.pipeGap, config.pipeWidth, canvas.height - pipe.topHeight - config.pipeGap);
             });
         }
 
         // Проверка столкновений
         function checkCollision() {
+            // С землей или потолком
             if (bird.y + bird.height > canvas.height || bird.y < 0) {
                 return true;
             }
 
+            // С трубами
             for (const pipe of pipes) {
                 if (
                     bird.x + bird.width > pipe.x &&
-                    bird.x < pipe.x + pipe.width &&
-                    (bird.y < pipe.topHeight || bird.y + bird.height > pipe.bottomY)
+                    bird.x < pipe.x + config.pipeWidth &&
+                    (bird.y < pipe.topHeight || bird.y + bird.height > pipe.topHeight + config.pipeGap)
                 ) {
                     return true;
                 }
@@ -199,27 +196,22 @@
         function gameOver() {
             gameRunning = false;
             gameOverElement.style.display = 'block';
-            restartBtn.style.display = 'block';
-        }
-
-        // Рестарт
-        function restartGame() {
-            bird.y = canvas.height / 2;
-            bird.velocity = 0;
-            pipes = [];
-            score = 0;
-            scoreElement.textContent = '0';
-            gameOverElement.style.display = 'none';
-            restartBtn.style.display = 'none';
-            gameRunning = true;
-            lastPipeTime = 0;
-            requestAnimationFrame(gameLoop);
         }
 
         // Прыжок
         function jump() {
-            if (!gameRunning) restartGame();
-            bird.velocity = bird.jumpForce;
+            if (!gameRunning) {
+                // Рестарт
+                bird.y = canvas.height / 2;
+                bird.velocity = 0;
+                pipes = [];
+                score = 0;
+                scoreElement.textContent = '0';
+                gameOverElement.style.display = 'none';
+                gameRunning = true;
+                gameLoop();
+            }
+            bird.velocity = config.jumpForce;
         }
 
         // Управление
@@ -228,24 +220,9 @@
             e.preventDefault();
             jump();
         });
-        document.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') jump();
-        });
-        restartBtn.addEventListener('click', restartGame);
-
-        // Фикс для Safari (блокировка скролла)
-        document.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-        }, { passive: false });
 
         // Старт игры
-        requestAnimationFrame(gameLoop);
-
-        // Ресайз при повороте экрана
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        });
+        gameLoop();
     </script>
 </body>
 </html>
