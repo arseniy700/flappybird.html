@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Flappy Bird</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            touch-action: manipulation;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #70c5ce;
+            font-family: Arial, sans-serif;
+        }
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 40px;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: red;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 10;
+        }
+        #restartBtn {
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            font-size: 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">0</div>
+    <div id="gameOver">Game Over!</div>
+    <button id="restartBtn">Restart</button>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const gameOverElement = document.getElementById('gameOver');
+        const restartBtn = document.getElementById('restartBtn');
+
+        // Размеры canvas = размеру экрана
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Настройки игры
+        let bird = {
+            x: 50,
+            y: canvas.height / 2,
+            width: 34,
+            height: 24,
+            velocity: 0,
+            gravity: 0.5,
+            jumpForce: -8
+        };
+
+        let pipes = [];
+        let score = 0;
+        let gameRunning = true;
+        let pipeGap = 150;
+        let pipeFrequency = 1500;
+        let lastPipeTime = 0;
+
+        // Рисуем птичку
+        function drawBird() {
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(bird.x, bird.y, bird.width, bird.height);
+            // Глаз
+            ctx.fillStyle = 'white';
+            ctx.fillRect(bird.x + 20, bird.y + 5, 8, 8);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(bird.x + 22, bird.y + 7, 4, 4);
+            // Клюв
+            ctx.fillStyle = '#FF8C00';
+            ctx.beginPath();
+            ctx.moveTo(bird.x + bird.width, bird.y + 10);
+            ctx.lineTo(bird.x + bird.width + 10, bird.y + 12);
+            ctx.lineTo(bird.x + bird.width, bird.y + 14);
+            ctx.fill();
+        }
+
+        // Рисуем трубы
+        function drawPipes() {
+            ctx.fillStyle = '#2E8B57';
+            pipes.forEach(pipe => {
+                ctx.fillRect(pipe.x, 0, pipe.width, pipe.topHeight);
+                ctx.fillRect(pipe.x, pipe.bottomY, pipe.width, canvas.height - pipe.bottomY);
+            });
+        }
+
+        // Игровой цикл
+        function gameLoop(timestamp) {
+            if (!gameRunning) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+
+            if (timestamp - lastPipeTime > pipeFrequency) {
+                createPipe();
+                lastPipeTime = timestamp;
+            }
+
+            pipes.forEach((pipe, index) => {
+                pipe.x -= 2;
+
+                if (pipe.x + pipe.width < bird.x && !pipe.passed) {
+                    pipe.passed = true;
+                    score++;
+                    scoreElement.textContent = score;
+                }
+
+                if (pipe.x + pipe.width < 0) {
+                    pipes.splice(index, 1);
+                }
+            });
+
+            drawBird();
+            drawPipes();
+
+            if (checkCollision()) {
+                gameOver();
+                return;
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Создание трубы
+        function createPipe() {
+            const minHeight = 50;
+            const maxHeight = canvas.height - pipeGap - minHeight;
+            const topHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+
+            pipes.push({
+                x: canvas.width,
+                width: 60,
+                topHeight: topHeight,
+                bottomY: topHeight + pipeGap,
+                passed: false
+            });
+        }
+
+        // Проверка столкновений
+        function checkCollision() {
+            if (bird.y + bird.height > canvas.height || bird.y < 0) {
+                return true;
+            }
+
+            for (const pipe of pipes) {
+                if (
+                    bird.x + bird.width > pipe.x &&
+                    bird.x < pipe.x + pipe.width &&
+                    (bird.y < pipe.topHeight || bird.y + bird.height > pipe.bottomY)
+                ) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // Конец игры
+        function gameOver() {
+            gameRunning = false;
+            gameOverElement.style.display = 'block';
+            restartBtn.style.display = 'block';
+        }
+
+        // Рестарт
+        function restartGame() {
+            bird.y = canvas.height / 2;
+            bird.velocity = 0;
+            pipes = [];
+            score = 0;
+            scoreElement.textContent = '0';
+            gameOverElement.style.display = 'none';
+            restartBtn.style.display = 'none';
+            gameRunning = true;
+            lastPipeTime = 0;
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Прыжок
+        function jump() {
+            if (!gameRunning) restartGame();
+            bird.velocity = bird.jumpForce;
+        }
+
+        // Управление
+        canvas.addEventListener('click', jump);
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            jump();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') jump();
+        });
+        restartBtn.addEventListener('click', restartGame);
+
+        // Фикс для Safari (блокировка скролла)
+        document.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+        }, { passive: false });
+
+        // Старт игры
+        requestAnimationFrame(gameLoop);
+
+        // Ресайз при повороте экрана
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
